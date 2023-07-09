@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "senior_pomidor"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+Django = "3.2.19"
+psycopg2 = "^2.9.6"
+djangorestframework = "^3.14.0"
+coverage = "^7.2.7"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
