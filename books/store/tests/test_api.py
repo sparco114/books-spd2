@@ -6,7 +6,7 @@ import rest_framework.status as status
 from django.contrib.auth.models import User
 from rest_framework.exceptions import ErrorDetail
 
-from store.models import Book
+from store.models import Book, UserBookRelation
 from store.serializers import BooksSerializer
 
 
@@ -141,7 +141,8 @@ class BooksApiTestCase(APITestCase):
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
         self.assertEqual(3, Book.objects.all().count())
         self.assertEqual([self.book1, self.book2, self.book3], [i for i in Book.objects.all()])
-        self.assertEqual({'detail': ErrorDetail(string='You do not have permission to perform this action.', code='permission_denied')}, response.data)
+        self.assertEqual({'detail': ErrorDetail(string='You do not have permission to perform this action.',
+                                                code='permission_denied')}, response.data)
 
     def test_get_one_object(self):
         url = reverse('book-detail', args=(self.book1.id,))
@@ -150,3 +151,76 @@ class BooksApiTestCase(APITestCase):
         serializer_data = BooksSerializer(self.book1).data
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
+
+
+class BooksRelationTestCase(APITestCase):
+
+    def setUp(self):
+        self.user1 = User.objects.create(username='test_username1')
+        self.user2 = User.objects.create(username='test_username2')
+        self.book1 = Book.objects.create(name='Test book 1 author 1', price=25, author_name='author 5',
+                                         owner=self.user1)
+        self.book2 = Book.objects.create(name='Test book 2', price=55, author_name='author 1')
+
+    def test_like(self):
+        url = reverse('userbookrelation-detail', args=(self.book1.id,))
+
+        self.client.force_login(user=self.user1)
+
+        data = {
+            'like': True
+        }
+        json_data = json.dumps(data)
+        response = self.client.patch(path=url,
+                                     data=json_data,
+                                     content_type='application/json')  # patch - можно передать одно поле, не обязательно передаветь данные всех полей при изменении объекта
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        # Book.refresh_from_db(self.book1)      # можно так
+        self.book1.refresh_from_db()            # а можно так
+        relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
+        self.assertTrue(relation.like)
+
+        data = {
+            'in_bookmarks': True
+        }
+        json_data = json.dumps(data)
+        response = self.client.patch(path=url,
+                                     data=json_data,
+                                     content_type='application/json')
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
+        self.assertTrue(relation.in_bookmarks)
+
+    def test_rate(self):
+        url = reverse('userbookrelation-detail', args=(self.book1.id,))
+
+        self.client.force_login(user=self.user1)
+
+        data = {
+            'rate': 1
+        }
+        json_data = json.dumps(data)
+        response = self.client.patch(path=url,
+                                     data=json_data,
+                                     content_type='application/json')
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.book1.refresh_from_db()
+        relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
+        print('relation.rate', relation)
+        self.assertEqual(1, relation.rate)
+
+    def test_rate_wrong(self):
+        url = reverse('userbookrelation-detail', args=(self.book1.id,))
+
+        self.client.force_login(user=self.user1)
+
+        data = {
+            'rate': 6
+        }
+        json_data = json.dumps(data)
+        response = self.client.patch(path=url,
+                                     data=json_data,
+                                     content_type='application/json')
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code, response.data) # третьим аргументом можно выводить ошибку, которую нам вернет ответ
+        err = {'rate': [ErrorDetail(string='"6" is not a valid choice.', code='invalid_choice')]}
+        self.assertEqual(err, response.data)
