@@ -12,4 +12,4 @@ class BooksSerializer(ModelSerializer):
 class UserBookRelationSerializer(ModelSerializer):
     class Meta:
         model = UserBookRelation
-        fields = ['book', 'like', 'in_bookmarks', 'rate']
+        fields = ['book', 'like', 'in_bookmarks', 'rate', 'bought']

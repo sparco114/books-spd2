@@ -27,10 +27,12 @@ class UserBookRelation(models.Model):
     like = models.BooleanField(default=False)
     in_bookmarks = models.BooleanField(default=False)
     rate = models.PositiveSmallIntegerField(choices=RATE_CHOICES, null=True)
+    bought = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.user.username}, ' \
                f'{self.book.name}, ' \
                f'RATE: {self.rate}, ' \
                f'like: {self.like}, ' \
-               f'in_bookmarks: {self.in_bookmarks}'
+               f'in_bookmarks: {self.in_bookmarks}, ' \
+               f'bought: {self.bought}'

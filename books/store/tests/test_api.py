@@ -206,7 +206,6 @@ class BooksRelationTestCase(APITestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.book1.refresh_from_db()
         relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
-        print('relation.rate', relation)
         self.assertEqual(1, relation.rate)
 
     def test_rate_wrong(self):
@@ -224,3 +223,23 @@ class BooksRelationTestCase(APITestCase):
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code, response.data) # третьим аргументом можно выводить ошибку, которую нам вернет ответ
         err = {'rate': [ErrorDetail(string='"6" is not a valid choice.', code='invalid_choice')]}
         self.assertEqual(err, response.data)
+
+    def test_bought(self):
+        url = reverse('userbookrelation-detail', args=(self.book1.id,))
+
+        self.client.force_login(user=self.user1)
+
+        data = {
+            'bought': True
+        }
+        json_data = json.dumps(data)
+        response = self.client.patch(path=url,
+                                     data=json_data,
+                                     content_type='application/json')  # patch - можно передать одно поле, не обязательно передаветь данные всех полей при изменении объекта
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        # Book.refresh_from_db(self.book1)      # можно так
+        self.book1.refresh_from_db()            # а можно так
+        relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
+        self.assertTrue(relation.bought)
+
+

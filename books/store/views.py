@@ -39,6 +39,9 @@ class UserBookRelationView(UpdateModelMixin, GenericViewSet):
         obj, _ = UserBookRelation.objects.get_or_create(user=self.request.user,
                                                         book_id=self.kwargs['bookk'],
                                                         ) # метод get_or_create возвращает объект и статус - найден он или создан, поэтому переменной '_' присвоится этот статус, но он нам не важен
+        print('============b', self.kwargs)
+        print('============u', self.request.user)
+        print('============o', obj)
         return obj
 
 
