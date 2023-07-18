@@ -1,5 +1,6 @@
 import json
 
+from django.db.models import Count, Case, When
 from django.urls import reverse
 from rest_framework.test import APITestCase
 import rest_framework.status as status
@@ -22,30 +23,55 @@ class BooksApiTestCase(APITestCase):
         url = reverse('book-list')  # list - чтоб создалась верная ссылка
         # print(url)
         response = self.client.get(url)
-        serializer_data = BooksSerializer([self.book1, self.book2, self.book3],
-                                          many=True).data  # если один объект, тогда можно указать без many и не списком
+        books = Book.objects.all().annotate(
+            annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+        ).order_by('id')
+        serializer_data = BooksSerializer(books, many=True).data
+
+        # serializer_data = BooksSerializer([self.book1, self.book2, self.book3], many=True).data
+        # если один объект, тогда можно указать без many и не списком
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
         # print(response.data)
 
     def test_get_filter(self):
         url = reverse('book-list')
+        books = Book.objects.filter(id__in=[self.book2.id, self.book3.id]).annotate(
+            annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+        ).order_by('id')
         response = self.client.get(url, data={'price': 55})
-        serializer_data = BooksSerializer([self.book2, self.book3], many=True).data
+        serializer_data = BooksSerializer(books, many=True).data # c annotate
+
+        # serializer_data = BooksSerializer([self.book2, self.book3], many=True).data # без annotate
+
+        # print('serializer_data+++++++', serializer_data)
+        # print('response.data++++++++', response.data)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
 
     def test_get_search(self):
         url = reverse('book-list')
+        books = Book.objects.filter(id__in=[self.book1.id, self.book2.id]).annotate(
+            annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+        ).order_by('id')
+
         response = self.client.get(url, data={'search': 'author 1'})
-        serializer_data = BooksSerializer([self.book1, self.book2], many=True).data
+        serializer_data = BooksSerializer(books, many=True).data # c annotate
+
+        # serializer_data = BooksSerializer([self.book1, self.book2], many=True).data # без annotate
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
 
     def test_get_ordering(self):
         url = reverse('book-list')
         response = self.client.get(url, data={'ordering': '-name'})
-        serializer_data = BooksSerializer([self.book3, self.book2, self.book1], many=True).data
+        books = Book.objects.filter(id__in=[self.book1.id, self.book2.id, self.book3.id]).annotate(
+            annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+        ).order_by('-id')
+
+        serializer_data = BooksSerializer(books, many=True).data # c annotate
+
+        # serializer_data = BooksSerializer([self.book3, self.book2, self.book1], many=True).data # без annotate
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
 
@@ -145,12 +171,24 @@ class BooksApiTestCase(APITestCase):
                                                 code='permission_denied')}, response.data)
 
     def test_get_one_object(self):
-        url = reverse('book-detail', args=(self.book1.id,))
+        url = reverse('book-detail', args=(self.book2.id,))
         self.client.force_login(self.user)
         response = self.client.get(url)
-        serializer_data = BooksSerializer(self.book1).data
+
+        book = Book.objects.filter(id__in=[self.book2.id]).annotate(
+            annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+        ).order_by('id')
+        # print('======book', book)
+
+        Book.refresh_from_db(self.book2)
+        serializer_data = BooksSerializer(book, many=True).data
+        serializer_data_dict = dict(*serializer_data) # так как url при book-detail возвращает простой словарь, а сериалайзер возвращает список OrderedDict, получается нужно его преобразовать тже в обычный словарь: сначала раскрыть этот список, а затем преобразовать этот OrderedDict в обычный словарь.
+
+        # print('======serializer_data', dict(*serializer_data))
+        # print('======response.data', response.data)
+
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual(serializer_data, response.data)
+        self.assertEqual(serializer_data_dict, response.data)
 
 
 class BooksRelationTestCase(APITestCase):
@@ -176,7 +214,7 @@ class BooksRelationTestCase(APITestCase):
                                      content_type='application/json')  # patch - можно передать одно поле, не обязательно передаветь данные всех полей при изменении объекта
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         # Book.refresh_from_db(self.book1)      # можно так
-        self.book1.refresh_from_db()            # а можно так
+        self.book1.refresh_from_db()  # а можно так
         relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
         self.assertTrue(relation.like)
 
@@ -220,7 +258,8 @@ class BooksRelationTestCase(APITestCase):
         response = self.client.patch(path=url,
                                      data=json_data,
                                      content_type='application/json')
-        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code, response.data) # третьим аргументом можно выводить ошибку, которую нам вернет ответ
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code,
+                         response.data)  # третьим аргументом можно выводить ошибку, которую нам вернет ответ
         err = {'rate': [ErrorDetail(string='"6" is not a valid choice.', code='invalid_choice')]}
         self.assertEqual(err, response.data)
 
@@ -238,8 +277,6 @@ class BooksRelationTestCase(APITestCase):
                                      content_type='application/json')  # patch - можно передать одно поле, не обязательно передаветь данные всех полей при изменении объекта
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         # Book.refresh_from_db(self.book1)      # можно так
-        self.book1.refresh_from_db()            # а можно так
+        self.book1.refresh_from_db()  # а можно так
         relation = UserBookRelation.objects.get(user=self.user1, book=self.book1)
         self.assertTrue(relation.bought)
-
-

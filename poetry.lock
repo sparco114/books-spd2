@@ -52,7 +52,7 @@ toml = ["tomli"]
 
 [[package]]
 name = "cryptography"
-version = "41.0.1"
+version = "41.0.2"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
 category = "main"
 optional = false
@@ -300,7 +300,7 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "a426b6de6f4346aad555ec0058964db27567eaaea36cf63f434b5e98345c1635"
+content-hash = "52494568682db85c4cbaa2c9c22a0a7f9d52cbebcb9fd550879e4a569b896bcf"
 
 [metadata.files]
 asgiref = []
