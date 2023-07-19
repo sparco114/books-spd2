@@ -1,4 +1,4 @@
-from django.db.models import When, Case, Count
+from django.db.models import When, Case, Count, Avg
 from rest_framework.mixins import UpdateModelMixin
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from django_filters.rest_framework import DjangoFilterBackend
@@ -17,8 +17,9 @@ class BookViewSet(ModelViewSet):
 
     # если используем для подтягивания лайков к книге annotate в сериалайзере, то нужно указывать так:
     queryset = Book.objects.all().annotate(
-        annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
-    ).order_by('id')
+            annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'),
+        ).order_by('id')
 
     serializer_class = BooksSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -26,7 +27,7 @@ class BookViewSet(ModelViewSet):
     # permission_classes = [IsAuthenticatedOrReadOnly] # стандартный класс, дает читать чтолько аутентифицированным
     permission_classes = [
         IsOwnerOrStaffOrReadOnly]  # создали кастомный класс, который проверяет является ли клиент создателем объекта
-    filterset_fields = ['price', 'name']
+    filterset_fields = ['id', 'price', 'name']
     search_fields = ['author_name', 'name']
     ordering_fields = ['price', 'name']
 

@@ -1,6 +1,6 @@
 import json
 
-from django.db.models import Count, Case, When
+from django.db.models import Count, Case, When, Avg
 from django.urls import reverse
 from rest_framework.test import APITestCase
 import rest_framework.status as status
@@ -19,12 +19,15 @@ class BooksApiTestCase(APITestCase):
         self.book2 = Book.objects.create(name='Test book 2', price=55, author_name='author 1')
         self.book3 = Book.objects.create(name='Test book 3', price=55, author_name='author 2')
 
+        UserBookRelation.objects.create(user=self.user, book=self.book1, like=True, in_bookmarks=True, rate=3, bought=False)
+
     def test_get(self):
         url = reverse('book-list')  # list - чтоб создалась верная ссылка
         # print(url)
         response = self.client.get(url)
         books = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'),
         ).order_by('id')
         serializer_data = BooksSerializer(books, many=True).data
 
@@ -32,12 +35,16 @@ class BooksApiTestCase(APITestCase):
         # если один объект, тогда можно указать без many и не списком
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
-        # print(response.data)
+        self.assertEqual(serializer_data[0]['likes_count'], 1)
+        self.assertEqual(serializer_data[0]['annotated_likes'], 1)
+        self.assertEqual(serializer_data[0]['rating'], '3.00')
+        # print('serializer_data========', serializer_data)
 
     def test_get_filter(self):
         url = reverse('book-list')
         books = Book.objects.filter(id__in=[self.book2.id, self.book3.id]).annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'),
         ).order_by('id')
         response = self.client.get(url, data={'price': 55})
         serializer_data = BooksSerializer(books, many=True).data # c annotate
@@ -53,6 +60,7 @@ class BooksApiTestCase(APITestCase):
         url = reverse('book-list')
         books = Book.objects.filter(id__in=[self.book1.id, self.book2.id]).annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'),
         ).order_by('id')
 
         response = self.client.get(url, data={'search': 'author 1'})
@@ -67,7 +75,8 @@ class BooksApiTestCase(APITestCase):
         response = self.client.get(url, data={'ordering': '-name'})
         books = Book.objects.filter(id__in=[self.book1.id, self.book2.id, self.book3.id]).annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
-        ).order_by('-id')
+            rating=Avg('userbookrelation__rate'),
+        ).order_by('-name')
 
         serializer_data = BooksSerializer(books, many=True).data # c annotate
 
@@ -175,20 +184,28 @@ class BooksApiTestCase(APITestCase):
         self.client.force_login(self.user)
         response = self.client.get(url)
 
+        # либо можно брать книгу из всего списка по id, тогда serializer_data не прийдется переводить в словарь, как это сделано ниже (dict(*serializer_data))
+        '''url = reverse('book-list')
+        self.client.force_login(self.user)
+        response = self.client.get(url, data={'id': self.book1.id})'''
+
+        # print('response======', response.data)
+
         book = Book.objects.filter(id__in=[self.book2.id]).annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'),
         ).order_by('id')
-        # print('======book', book)
 
         Book.refresh_from_db(self.book2)
         serializer_data = BooksSerializer(book, many=True).data
-        serializer_data_dict = dict(*serializer_data) # так как url при book-detail возвращает простой словарь, а сериалайзер возвращает список OrderedDict, получается нужно его преобразовать тже в обычный словарь: сначала раскрыть этот список, а затем преобразовать этот OrderedDict в обычный словарь.
+        # serializer_data_dict = dict(*serializer_data) # так как url при book-detail возвращает простой словарь, а сериалайзер возвращает список OrderedDict, получается нужно его преобразовать тже в обычный словарь: сначала раскрыть этот список, а затем преобразовать этот OrderedDict в обычный словарь.
 
         # print('======serializer_data', dict(*serializer_data))
-        # print('======response.data', response.data)
+        # print('======serializer_data', serializer_data)
+        # print('======response.data', [response.data])
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual(serializer_data_dict, response.data)
+        self.assertEqual(serializer_data, [response.data]) # либо можно вместо рпиведения к словарю путем serializer_data_dict, преобразовать в список response.data, так как serializer_data возвращает список OrderedDict-ов
 
 
 class BooksRelationTestCase(APITestCase):
