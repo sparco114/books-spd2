@@ -1,4 +1,4 @@
-from django.db.models import When, Case, Count, Avg
+from django.db.models import When, Case, Count, Avg, F
 from rest_framework.mixins import UpdateModelMixin
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from django_filters.rest_framework import DjangoFilterBackend
@@ -19,7 +19,12 @@ class BookViewSet(ModelViewSet):
     queryset = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
             rating=Avg('userbookrelation__rate'),
-        ).order_by('id')
+            price_with_discount=Case(
+                When(discount=None, then=F('price')),
+                When(discount=0, then=F('price')),
+                default=F('price') - (F('price') * F('discount') / 100),
+        )).order_by('id')
+    # можно указать так "order_by(F('discount').desc(nulls_last=True), 'id')" чтобы сортировало сначала по discount, и значения null выставляет в конец, а потом сортировало это по id. Но при применении фильтра сортировки в гет запросе это не работает, для этого нужно переопределить функцию get_ordering в классе OrderingFilter, который указан здесь в filter_backends
 
     serializer_class = BooksSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -29,7 +34,7 @@ class BookViewSet(ModelViewSet):
         IsOwnerOrStaffOrReadOnly]  # создали кастомный класс, который проверяет является ли клиент создателем объекта
     filterset_fields = ['id', 'price', 'name']
     search_fields = ['author_name', 'name']
-    ordering_fields = ['price', 'name']
+    ordering_fields = ['price', 'name', 'discount']
 
     def perform_create(self, serializer):
         serializer.validated_data['owner'] = self.request.user
