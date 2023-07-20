@@ -1,7 +1,9 @@
 import json
 
+from django.db import connection
 from django.db.models import Count, Case, When, Avg, F
 from django.urls import reverse
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APITestCase
 import rest_framework.status as status
 from django.contrib.auth.models import User
@@ -24,7 +26,13 @@ class BooksApiTestCase(APITestCase):
     def test_get(self):
         url = reverse('book-list')  # list - чтоб создалась верная ссылка
         # print(url)
-        response = self.client.get(url)
+
+        # response = self.client.get(url) # стандартный вариант запроса, но можно обернуть его в CaptureQueriesContext, чтобы посчитать количество запросов в базу.
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url)
+            self.assertEqual(2, len(queries))
+            # print('queries', len(queries))
+
         books = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
             rating=Avg('userbookrelation__rate'),
@@ -39,7 +47,7 @@ class BooksApiTestCase(APITestCase):
         # если один объект, тогда можно указать без many и не списком
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
-        self.assertEqual(serializer_data[0]['likes_count'], 1)
+        # self.assertEqual(serializer_data[0]['likes_count'], 1)
         self.assertEqual(serializer_data[0]['annotated_likes'], 1)
         self.assertEqual(serializer_data[0]['rating'], '3.00')
         self.assertEqual(serializer_data[2]['discount'], 30)
