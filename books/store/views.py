@@ -18,7 +18,7 @@ class BookViewSet(ModelViewSet):
     # если используем для подтягивания лайков к книге annotate в сериалайзере, то нужно указывать так:
     queryset = Book.objects.all().annotate(
         annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
-        rating=Avg('userbookrelation__rate'),
+        # rating=Avg('userbookrelation__rate'), # каждый раз высчитывает в среднюю величину. Можно добавить поле в модель Book, чтобы оно хранилось и хешировалось при обновлении количества лайков. При добавлении такого поля в Book нужно удалить отсюда.
         price_with_discount=Case(
             When(discount=None, then=F('price')),
             When(discount=0, then=F('price')),
